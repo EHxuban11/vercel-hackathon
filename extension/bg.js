@@ -48,7 +48,7 @@ function buildRules() {
       redirect: { extensionPath: "/blocked.html" },
     },
     condition: {
-      urlFilter: `||${site}`,
+      urlFilter: `||${site}^`,
       resourceTypes: ["main_frame"],
     },
   }));
@@ -65,10 +65,9 @@ async function sync() {
     }
   }
 
-  const current = await chrome.declarativeNetRequest.getDynamicRules();
-  const removeRuleIds = current.map((r) => r.id);
+  // fixed IDs → idempotent and safe under concurrent sync() calls
   await chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds,
+    removeRuleIds: BLOCKED_SITES.map((_, i) => i + 1),
     addRules: active ? buildRules() : [],
   });
 
@@ -86,6 +85,13 @@ chrome.runtime.onInstalled.addListener(() => {
   sync();
 });
 chrome.runtime.onStartup.addListener(sync);
+
+// runs on every service-worker wake: re-arm the alarm if Chrome dropped it
+// (disable→enable clears alarms but keeps the persisted blocking rules)
+chrome.alarms.get("sync").then((a) => {
+  if (!a) chrome.alarms.create("sync", { periodInMinutes: POLL_MINUTES });
+});
+sync();
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === "sync") sync();
 });

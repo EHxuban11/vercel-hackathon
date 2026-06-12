@@ -54,7 +54,12 @@ export async function sayRoast(text: string, lang: Lang, phraseId?: string) {
     });
     if (res.ok && res.headers.get("content-type")?.includes("audio")) {
       const blob = await res.blob();
-      await playUrl(URL.createObjectURL(blob));
+      const url = URL.createObjectURL(blob);
+      try {
+        await playUrl(url);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
       return;
     }
   } catch {

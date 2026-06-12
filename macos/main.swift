@@ -58,6 +58,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         pollTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.poll() }
         sweepTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.sweepTabs() }
+        // .common keeps them firing while the status-bar menu is open
+        RunLoop.main.add(pollTimer!, forMode: .common)
+        RunLoop.main.add(sweepTimer!, forMode: .common)
         poll()
     }
 
@@ -93,10 +96,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return req
     }
 
+    private func parseTimestamp(_ s: String?) -> Date? {
+        guard let s else { return nil }
+        let withFrac = ISO8601DateFormatter()
+        withFrac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = withFrac.date(from: s) { return d }
+        // Postgres omits fractional seconds when they're exactly zero
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        return plain.date(from: s)
+    }
+
     private func poll() {
         guard !userName.isEmpty else { update(session: nil, label: "Set your name first") ; return }
-        let name = userName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? userName
-        let path = "/rest/v1/sessions?user_name=eq.\(name)&ended_at=is.null&select=id,started_at,planned_minutes&order=started_at.desc&limit=1"
+        var comps = URLComponents(string: "\(Config.supabaseURL)/rest/v1/sessions")!
+        comps.queryItems = [
+            URLQueryItem(name: "user_name", value: "eq.\(userName)"),
+            URLQueryItem(name: "ended_at", value: "is.null"),
+            URLQueryItem(name: "select", value: "id,started_at,planned_minutes"),
+            URLQueryItem(name: "order", value: "started_at.desc"),
+            URLQueryItem(name: "limit", value: "1"),
+        ]
+        let path = comps.url!.absoluteString.replacingOccurrences(of: Config.supabaseURL, with: "")
         URLSession.shared.dataTask(with: supabaseRequest(path: path)) { [weak self] data, _, _ in
             guard let self else { return }
             var session: ActiveSession?
@@ -104,12 +125,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
                let row = rows.first,
                let id = row["id"] as? String {
-                // safety valve: stop blocking if the session was never ended
+                // safety valve: stop blocking if the session was never ended.
+                // Unparseable timestamp → fail open (treat as expired), never block forever.
                 let planned = row["planned_minutes"] as? Double ?? 25
-                let fmt = ISO8601DateFormatter()
-                fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                let started = (row["started_at"] as? String).flatMap { fmt.date(from: $0) } ?? Date()
-                if Date().timeIntervalSince(started) < (planned + 10) * 60 {
+                if let started = self.parseTimestamp(row["started_at"] as? String),
+                   Date().timeIntervalSince(started) < (planned + 10) * 60 {
                     session = ActiveSession(id: id)
                 }
             }
@@ -138,20 +158,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func sweepTabs() {
         guard let session = activeSession else { return }
-        let conditions = BLOCKED_SITES.map { "u contains \"\($0)\"" }.joined(separator: " or ")
+        // anchor on host boundaries: "://site/" or ".site/" — plain "contains site"
+        // would match dropbox.com for x.com, youtube.community, URLs with the site in the path…
+        let conditions = BLOCKED_SITES
+            .map { "(u contains \"://\($0)/\" or u contains \".\($0)/\")" }
+            .joined(separator: " or ")
         let script = """
         set killed to 0
         tell application "Google Chrome"
             if it is running then
                 repeat with w in windows
-                    set tabCount to count of tabs of w
-                    repeat with i from tabCount to 1 by -1
-                        set u to URL of tab i of w
-                        if \(conditions) then
-                            close tab i of w
-                            set killed to killed + 1
-                        end if
-                    end repeat
+                    try
+                        set tabCount to count of tabs of w
+                        repeat with i from tabCount to 1 by -1
+                            set u to URL of tab i of w
+                            if \(conditions) then
+                                close tab i of w
+                                set killed to killed + 1
+                            end if
+                        end repeat
+                    end try
                 end repeat
             end if
         end tell

@@ -74,7 +74,8 @@ export async function endSession(sessionId: string, completed: boolean) {
     await supabase
       .from("sessions")
       .update({ ended_at: new Date().toISOString(), completed })
-      .eq("id", sessionId);
+      .eq("id", sessionId)
+      .is("ended_at", null); // never overwrite an already-ended session (beacon/finish race)
     return;
   }
   const rows = lsRead<SessionRow>(LS_SESSIONS);
@@ -104,31 +105,36 @@ export async function logViolation(sessionId: string, userName: string, kind: Vi
 
 /** Current streak = consecutive most-recent completed sessions with zero violations. */
 export async function getStats(userName: string): Promise<{ streak: number; bestStreak: number }> {
-  let sessions: { id: string; completed: boolean; started_at: string }[] = [];
-  let violationsBySession = new Map<string, number>();
+  let sessions: { id: string; completed: boolean; started_at: string; ended_at: string | null }[] = [];
+  let rawViolations: { session_id: string; created_at: string }[] = [];
 
   if (supabase) {
     const [s, v] = await Promise.all([
       supabase
         .from("sessions")
-        .select("id, completed, started_at")
+        .select("id, completed, started_at, ended_at")
         .eq("user_name", userName)
         .not("ended_at", "is", null)
         .order("started_at", { ascending: false })
         .limit(200),
-      supabase.from("violations").select("session_id").eq("user_name", userName),
+      supabase.from("violations").select("session_id, created_at").eq("user_name", userName),
     ]);
     sessions = s.data ?? [];
-    for (const row of v.data ?? []) {
-      violationsBySession.set(row.session_id, (violationsBySession.get(row.session_id) ?? 0) + 1);
-    }
+    rawViolations = (v.data ?? []) as typeof rawViolations;
   } else {
     sessions = lsRead<SessionRow>(LS_SESSIONS)
       .filter((r) => r.user_name === userName && r.ended_at !== null)
       .sort((a, b) => b.started_at.localeCompare(a.started_at));
-    for (const v of lsRead<LocalViolation>(LS_VIOLATIONS)) {
-      violationsBySession.set(v.session_id, (violationsBySession.get(v.session_id) ?? 0) + 1);
-    }
+    rawViolations = lsRead<LocalViolation>(LS_VIOLATIONS);
+  }
+
+  // ignore stragglers logged by the extension/Mac app after the session ended
+  const endedAt = new Map(sessions.map((s) => [s.id, s.ended_at]));
+  const violationsBySession = new Map<string, number>();
+  for (const v of rawViolations) {
+    const end = endedAt.get(v.session_id);
+    if (end && v.created_at > end) continue;
+    violationsBySession.set(v.session_id, (violationsBySession.get(v.session_id) ?? 0) + 1);
   }
 
   const clean = sessions.map((s) => s.completed && !(violationsBySession.get(s.id) ?? 0));
@@ -214,19 +220,26 @@ export async function getHistory(userName: string): Promise<HistoryEntry[]> {
 
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
   let sessions: SessionRow[] = [];
-  let violations: { session_id: string; user_name: string; kind: ViolationKind }[] = [];
+  let violations: { session_id: string; user_name: string; kind: ViolationKind; created_at: string }[] = [];
 
   if (supabase) {
     const [s, v] = await Promise.all([
       supabase.from("sessions").select("*").order("started_at", { ascending: false }).limit(500),
-      supabase.from("violations").select("session_id, user_name, kind").limit(2000),
+      supabase.from("violations").select("session_id, user_name, kind, created_at").limit(2000),
     ]);
     sessions = (s.data ?? []) as SessionRow[];
     violations = (v.data ?? []) as typeof violations;
   } else {
     sessions = lsRead<SessionRow>(LS_SESSIONS);
-    violations = lsRead<LocalViolation>(LS_VIOLATIONS);
+    violations = lsRead<LocalViolation>(LS_VIOLATIONS) as typeof violations;
   }
+
+  // drop violations logged after their session ended (extension/Mac app stragglers)
+  const sessionEnd = new Map(sessions.map((s) => [s.id, s.ended_at]));
+  violations = violations.filter((v) => {
+    const end = sessionEnd.get(v.session_id);
+    return !end || v.created_at <= end;
+  });
 
   const byName = new Map<string, LeaderboardEntry>();
   const ensure = (name: string) => {

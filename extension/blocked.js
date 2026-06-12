@@ -3,12 +3,13 @@
 
 import { SUPABASE_URL, SUPABASE_KEY, APP_URL } from "./config.js";
 
+// Order must match TAB_PHRASES in lib/phrases.ts — tab-N.mp3 is the voice for ROASTS[N-1]
 const ROASTS = [
   "Switching tabs? Was YouTube calling your name again?",
-  "Reddit will still be there in twenty minutes. Your deadline won't.",
   "I saw that. You left. In the middle of a focus session.",
+  "Reddit will still be there in twenty minutes. Your deadline won't.",
+  "Welcome back. Your productivity left while you were gone.",
   "Every tab you open is a little betrayal. I felt this one.",
-  "Welcome back to reality. Your productivity left while you were gone.",
 ];
 const AUDIO_IDS = ["tab-1", "tab-2", "tab-3", "tab-4", "tab-5"];
 
@@ -29,6 +30,13 @@ new Audio(`${APP_URL}/audio/${AUDIO_IDS[idx]}.mp3`).play().catch(() => {});
   ]);
   if (!userName || !activeSessionId) return;
   if (lastViolationAt && Date.now() - lastViolationAt < COOLDOWN_MS) return;
+
+  // the cached session id can be ~30s stale — never log against an ended session
+  const check = await fetch(
+    `${SUPABASE_URL}/rest/v1/sessions?id=eq.${activeSessionId}&select=ended_at`,
+    { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+  ).then((r) => r.json()).catch(() => null);
+  if (!check?.[0] || check[0].ended_at !== null) return;
 
   await chrome.storage.local.set({ lastViolationAt: Date.now() });
   await fetch(`${SUPABASE_URL}/rest/v1/violations`, {

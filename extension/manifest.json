@@ -9,7 +9,16 @@
     "alarms"
   ],
   "host_permissions": [
-    "https://uamlztbjnexdgwlcgzkp.supabase.co/*"
+    "https://uamlztbjnexdgwlcgzkp.supabase.co/*",
+    "*://*.youtube.com/*",
+    "*://*.reddit.com/*",
+    "*://*.twitter.com/*",
+    "*://*.x.com/*",
+    "*://*.instagram.com/*",
+    "*://*.tiktok.com/*",
+    "*://*.twitch.tv/*",
+    "*://*.netflix.com/*",
+    "*://*.facebook.com/*"
   ],
   "background": {
     "service_worker": "bg.js",

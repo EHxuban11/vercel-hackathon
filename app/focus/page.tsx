@@ -11,6 +11,7 @@ import {
   getStats,
   logViolation,
   startSession,
+  usingSupabase,
   type ViolationEvent,
   type ViolationKind,
 } from "@/lib/store";
@@ -103,7 +104,7 @@ export default function FocusPage() {
     const canvas = overlayRef.current;
     const video = videoRef.current;
     if (!canvas || !video) return;
-    if (canvas.width !== video.videoWidth) {
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
     }
@@ -115,7 +116,16 @@ export default function FocusPage() {
       ctx.strokeRect(det.box.x, det.box.y, det.box.w, det.box.h);
       ctx.fillStyle = "#ef4444";
       ctx.font = "bold 20px sans-serif";
-      ctx.fillText(`PHONE ${(det.score * 100).toFixed(0)}%`, det.box.x, Math.max(det.box.y - 8, 20));
+      // the canvas is CSS-mirrored with the video — pre-flip the label so it reads normally
+      ctx.save();
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.fillText(
+        `PHONE ${(det.score * 100).toFixed(0)}%`,
+        canvas.width - det.box.x - det.box.w,
+        Math.max(det.box.y - 8, 20)
+      );
+      ctx.restore();
     }
   }, []);
 
@@ -151,29 +161,31 @@ export default function FocusPage() {
   );
 
   const finish = useCallback(async (completed: boolean) => {
+    if (phaseRef.current === "done") return; // idempotent — timer/strict-mode/bfcache can race
     setPhase("done");
     phaseRef.current = "done";
     setCompletedClean(completed && violationsRef.current === 0);
     cancelAnimationFrame(rafRef.current);
     streamRef.current?.getTracks().forEach((tr) => tr.stop());
-    if (sessionIdRef.current) await endSession(sessionIdRef.current, completed);
+    const sessionId = sessionIdRef.current;
+    if (sessionId) {
+      await endSession(sessionId, completed);
+      // extension/Mac app log to the same table — count those too
+      const all = await getSessionViolations(sessionId).catch(() => []);
+      setCompletedClean(completed && violationsRef.current === 0 && all.length === 0);
+    }
   }, []);
 
-  // countdown
+  // countdown (pure updater; finishing handled by the effect below)
   useEffect(() => {
     if (phase !== "running") return;
-    const iv = setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) {
-          clearInterval(iv);
-          void finish(true);
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
+    const iv = setInterval(() => setSecondsLeft((s) => Math.max(s - 1, 0)), 1000);
     return () => clearInterval(iv);
-  }, [phase, finish]);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === "running" && secondsLeft === 0) void finish(true);
+  }, [phase, secondsLeft, finish]);
 
   // live timeline: poll this session's violations (includes the browser
   // extension and the Mac app — they write to the same Supabase table)
@@ -192,14 +204,35 @@ export default function FocusPage() {
   useEffect(() => {
     function onPageHide() {
       if (phaseRef.current === "running" && sessionIdRef.current) {
-        navigator.sendBeacon(
-          "/api/end-session",
-          new Blob([JSON.stringify({ sessionId: sessionIdRef.current })], { type: "application/json" })
-        );
+        if (usingSupabase) {
+          navigator.sendBeacon(
+            "/api/end-session",
+            new Blob([JSON.stringify({ sessionId: sessionIdRef.current })], { type: "application/json" })
+          );
+        } else {
+          void endSession(sessionIdRef.current, false); // localStorage write is sync
+        }
       }
     }
+    function onPageShow(e: PageTransitionEvent) {
+      // bfcache restore: the beacon already ended the session — don't resume a ghost
+      if (e.persisted && phaseRef.current === "running") void finish(false);
+    }
     window.addEventListener("pagehide", onPageHide);
-    return () => window.removeEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, [finish]);
+
+  // client-side nav away (header links) unmounts without pagehide — end the session
+  useEffect(() => {
+    return () => {
+      if (phaseRef.current === "running" && sessionIdRef.current) {
+        void endSession(sessionIdRef.current, false);
+      }
+    };
   }, []);
 
   // tab-switch detection (the "blocker" replacement)
@@ -231,8 +264,9 @@ export default function FocusPage() {
       await video.play();
 
       if (!detectorRef.current) {
-        detectorRef.current = new PhoneDetector();
-        await detectorRef.current.init(setLoadingMsg);
+        const d = new PhoneDetector();
+        await d.init(setLoadingMsg); // assign only on success so a failed init can retry
+        detectorRef.current = d;
       }
       setDetectorInfo(detectorRef.current.info);
 
@@ -241,6 +275,8 @@ export default function FocusPage() {
       sessionIdRef.current = await startSession(userName, plannedMinutes).catch(() => null);
 
       violationsRef.current = 0;
+      hitsRef.current = [];
+      lastViolationRef.current = 0;
       setViolations(0);
       setLastRoast("");
       setTimeline([]);
