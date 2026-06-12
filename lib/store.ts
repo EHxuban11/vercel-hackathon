@@ -21,6 +21,7 @@ export type LeaderboardEntry = {
   phoneViolations: number;
   tabViolations: number;
   sessionsCompleted: number;
+  cleanSessions: number;
   currentStreak: number;
 };
 
@@ -298,6 +299,7 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
         phoneViolations: 0,
         tabViolations: 0,
         sessionsCompleted: 0,
+        cleanSessions: 0,
         currentStreak: 0,
       });
     }
@@ -315,8 +317,11 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
 
   const sessionsByName = new Map<string, SessionRow[]>();
   for (const s of sessions) {
-    ensure(s.user_name);
-    if (s.completed) ensure(s.user_name).sessionsCompleted++;
+    const e = ensure(s.user_name);
+    if (s.completed) {
+      e.sessionsCompleted++;
+      if (!(violationsBySession.get(s.id) ?? 0)) e.cleanSessions++;
+    }
     const arr = sessionsByName.get(s.user_name) ?? [];
     arr.push(s);
     sessionsByName.set(s.user_name, arr);
