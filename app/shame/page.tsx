@@ -319,11 +319,6 @@ export default function WallOfShame() {
                 ))}
               </tbody>
             </table>
-            {board.length > 12 && (
-              <div className="px-4 py-2 text-xs text-zinc-600 border-t border-zinc-800/60">
-                + {board.length - 12} more heroes in training
-              </div>
-            )}
           </div>
 
           <div className="overflow-hidden rounded-xl border border-red-500/30">
@@ -361,11 +356,6 @@ export default function WallOfShame() {
                 ))}
               </tbody>
             </table>
-            {board.length > 12 && (
-              <div className="px-4 py-2 text-xs text-zinc-600 border-t border-zinc-800/60">
-                + {board.length - 12} more disappointments
-              </div>
-            )}
           </div>
         </div>
       )}

@@ -20,7 +20,7 @@ import { randomPhrase, type Lang } from "@/lib/phrases";
 const CONF_THRESHOLD = 0.3;
 const WINDOW = 6; // look at the last N detections…
 const HITS_TO_TRIGGER = 4; // …and fire when this many were above threshold
-const COOLDOWN_MS = 15_000; // min gap between violations
+const COOLDOWN_MS = 8_000; // min gap between violations — roughly one roast's audio length
 const DETECT_INTERVAL_MS = 120;
 
 type Phase = "idle" | "loading" | "running" | "done";
