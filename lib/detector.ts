@@ -19,6 +19,8 @@ export class PhoneDetector {
   private ort: OrtModule | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private busy = false;
+  /** which model/backend actually loaded, e.g. "YOLO26-L · WebGPU" */
+  info = "";
 
   async init(onProgress?: (msg: string) => void) {
     onProgress?.("Loading ONNX runtime…");
@@ -27,17 +29,19 @@ export class PhoneDetector {
     ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/";
     this.ort = ort;
 
-    // YOLO26m on WebGPU (GPU-accelerated, strongest model), YOLOv8s on WASM fallback
+    // YOLO26-L on WebGPU (GPU-accelerated, strongest model), YOLOv8s on WASM fallback
     try {
-      onProgress?.("Loading YOLO26m (82 MB, GPU)…");
-      this.session = await ort.InferenceSession.create("/models/yolo26m.onnx", {
+      onProgress?.("Loading YOLO26-L (95 MB, GPU)…");
+      this.session = await ort.InferenceSession.create("/models/yolo26l.onnx", {
         executionProviders: ["webgpu"],
       });
+      this.info = "YOLO26-L · WebGPU";
     } catch {
       onProgress?.("WebGPU unavailable — loading YOLOv8s (45 MB, CPU)…");
       this.session = await ort.InferenceSession.create("/models/yolov8s.onnx", {
         executionProviders: ["wasm"],
       });
+      this.info = "YOLOv8-S · CPU";
     }
 
     this.canvas = document.createElement("canvas");

@@ -38,6 +38,9 @@ export default function FocusPage() {
   const [plannedMinutes, setPlannedMinutes] = useState(25);
   const [secondsLeft, setSecondsLeft] = useState(25 * 60);
   const [score, setScore] = useState(0);
+  const [fps, setFps] = useState(0);
+  const [detectorInfo, setDetectorInfo] = useState("");
+  const fpsTimesRef = useRef<number[]>([]);
   const [caught, setCaught] = useState(false);
   const [violations, setViolations] = useState(0);
   const [lastRoast, setLastRoast] = useState("");
@@ -118,6 +121,12 @@ export default function FocusPage() {
       if (!video || !detector?.ready) return;
       void detector.detect(video, CONF_THRESHOLD).then((det) => {
         if (!det || phaseRef.current !== "running") return;
+        const now = performance.now();
+        fpsTimesRef.current.push(now);
+        while (fpsTimesRef.current.length && fpsTimesRef.current[0] < now - 2000) {
+          fpsTimesRef.current.shift();
+        }
+        setFps(fpsTimesRef.current.length / 2);
         setScore(det.score);
         drawOverlay(det);
         // sliding window: tolerate flickery scores instead of demanding strict consecutive hits
@@ -189,6 +198,7 @@ export default function FocusPage() {
         detectorRef.current = new PhoneDetector();
         await detectorRef.current.init(setLoadingMsg);
       }
+      setDetectorInfo(detectorRef.current.info);
 
       const userName = localStorage.getItem("pj_name") ?? "unknown";
       statsRef.current = await getStats(userName).catch(() => ({ streak: 0, bestStreak: 0 }));
@@ -309,6 +319,9 @@ export default function FocusPage() {
               Violations: <span className={violations > 0 ? "text-red-400 font-bold" : ""}>{violations}</span>
             </span>
             <span>Streak: {statsRef.current.streak}</span>
+          </div>
+          <div className="text-xs text-zinc-600 font-mono">
+            {detectorInfo} · {fps.toFixed(1)} fps · 100% local inference
           </div>
 
           {lastRoast && (
