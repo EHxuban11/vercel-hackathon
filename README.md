@@ -38,6 +38,17 @@ Works out of the box with zero config:
 Camera frames **never leave the browser** — inference is local WASM. Only violation *events*
 (timestamp + type) are stored.
 
+## The enforcer: Phone Jail for Mac
+
+`macos/` — a Swift menu bar app (build: `./macos/build.sh`, or grab `/downloads/PhoneJail.dmg` from the
+site). It polls Supabase for your active focus session and, while one is running, kills distracting
+Chrome tabs (YouTube, Reddit, X, TikTok…) every 2 seconds, plays the ElevenLabs shame audio, and logs
+the violation to the same `violations` table — so it shows up in the session timeline and the Wall of
+Shame. The web app is the source of truth; the Mac app is just the muscle.
+
+(There's also a Chrome extension in `extension/` that does the same with declarativeNetRequest —
+kept as a cross-platform bonus.)
+
 ## Architecture
 
 - `lib/detector.ts` — YOLOv8n ONNX in-browser, letterboxed 640×640, cell-phone class only,

@@ -3,19 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usingSupabase } from "@/lib/store";
-import { extensionInstalled, pairExtension } from "@/lib/extension";
+import { pairExtension } from "@/lib/extension";
 
 export default function Home() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [auth, setAuth] = useState<"unknown" | "unavailable" | "logged-out" | "logged-in">("unknown");
-  const [extOk, setExtOk] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("pj_name") ?? "";
     setName(saved);
-    if (saved) pairExtension(saved);
-    void extensionInstalled().then(setExtOk);
+    if (saved) pairExtension(saved); // extension still pairs silently if someone has it
     // Auth0 (when configured) mounts /auth/profile via middleware; 404 = not configured
     fetch("/auth/profile")
       .then(async (res) => {
@@ -84,59 +82,27 @@ export default function Home() {
       </div>
 
       <div className="max-w-md w-full rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 text-left space-y-2">
-        {extOk ? (
-          <>
-            <h2 className="font-semibold">🧱 Blocker extension connected ✅</h2>
-            <p className="text-sm text-zinc-400">
-              YouTube, Reddit, X, TikTok &amp; friends get blocked browser-wide whenever you start a
-              focus session. Attempts to visit them go straight to the Wall of Shame.
-            </p>
-          </>
-        ) : (
-          <>
-            <h2 className="font-semibold">🧱 Want actual blocking? Get the browser extension</h2>
-            <p className="text-sm text-zinc-400">
-              Blocks YouTube, Reddit, X, TikTok &amp; friends across your whole browser during focus
-              sessions — and snitches every attempt to the Wall of Shame. Pairs with this page
-              automatically, no setup.
-            </p>
-            <ol className="text-sm text-zinc-400 list-decimal list-inside space-y-1">
-              <li>
-                <a
-                  href="/downloads/phone-jail-blocker.zip"
-                  className="text-red-400 underline hover:text-red-300"
-                >
-                  Download
-                </a>{" "}
-                and double-click the zip to unpack it
-              </li>
-              <li>
-                Paste{" "}
-                <button
-                  onClick={() => navigator.clipboard.writeText("chrome://extensions")}
-                  className="font-mono text-zinc-200 bg-zinc-800 px-1.5 py-0.5 rounded hover:bg-zinc-700"
-                  title="Click to copy"
-                >
-                  chrome://extensions 📋
-                </button>{" "}
-                in the address bar → flip on <span className="text-zinc-300">Developer mode</span>
-              </li>
-              <li>
-                Drag the <span className="text-zinc-300">phone-jail-blocker</span> folder onto that
-                page. Done — refresh here and it pairs itself.
-              </li>
-            </ol>
-            <p className="text-sm text-zinc-400 border-t border-zinc-800 pt-2 mt-2">
-              🍎 On a Mac? There&apos;s also a{" "}
-              <a href="/downloads/PhoneJail.dmg" className="text-red-400 underline hover:text-red-300">
-                menu bar app
-              </a>{" "}
-              that kills distracting Chrome tabs system-wide during sessions — voice shaming included.
-              (Unsigned build — right-click → Open, or build from{" "}
-              <code className="text-zinc-300">macos/</code> in the repo.)
-            </p>
-          </>
-        )}
+        <h2 className="font-semibold">🍎 The enforcer: Phone Jail for Mac</h2>
+        <p className="text-sm text-zinc-400">
+          A menu bar app that watches your focus sessions (Supabase is the source of truth) and{" "}
+          <span className="text-zinc-200">kills YouTube, Reddit, X &amp; TikTok tabs in Chrome the
+          second you open them</span> — voice shaming included, every attempt logged to the Wall of
+          Shame.
+        </p>
+        <ol className="text-sm text-zinc-400 list-decimal list-inside space-y-1">
+          <li>
+            <a href="/downloads/PhoneJail.dmg" className="text-red-400 underline hover:text-red-300">
+              Download PhoneJail.dmg
+            </a>{" "}
+            and drag the app anywhere
+          </li>
+          <li>
+            Unsigned hackathon build: if macOS complains, System Settings → Privacy &amp; Security →{" "}
+            <span className="text-zinc-300">Open Anyway</span> (or build it yourself:{" "}
+            <code className="text-zinc-300">./macos/build.sh</code> in the repo)
+          </li>
+          <li>Click 📵 in the menu bar → set the same name you use here. Done.</li>
+        </ol>
       </div>
     </div>
   );
