@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usingSupabase } from "@/lib/store";
 import { pairExtension } from "@/lib/extension";
+import { preloadDetector } from "@/lib/detector";
 
 export default function Home() {
   const router = useRouter();
@@ -11,6 +12,7 @@ export default function Home() {
   const [auth, setAuth] = useState<"unknown" | "unavailable" | "logged-out" | "logged-in">("unknown");
 
   useEffect(() => {
+    void preloadDetector().catch(() => {}); // warm the model + WebGPU in the background
     const saved = localStorage.getItem("pj_name") ?? "";
     setName(saved);
     if (saved) pairExtension(saved); // extension still pairs silently if someone has it

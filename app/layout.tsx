@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import LogoutButton from "@/components/LogoutButton";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -34,13 +35,14 @@ export default function RootLayout({
           <Link href="/" className="font-bold text-lg tracking-tight">
             📵 Phone Jail
           </Link>
-          <nav className="flex gap-5 text-sm text-zinc-400">
+          <nav className="flex items-center gap-5 text-sm text-zinc-400">
             <Link href="/focus" className="hover:text-white transition-colors">
               Focus
             </Link>
             <Link href="/shame" className="hover:text-white transition-colors">
               Wall of Shame
             </Link>
+            <LogoutButton />
           </nav>
         </header>
         <main className="flex-1 flex flex-col">{children}</main>

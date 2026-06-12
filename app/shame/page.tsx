@@ -44,6 +44,25 @@ export default function WallOfShame() {
           Your team&apos;s worst offenders, live.{" "}
           {!usingSupabase && <span className="text-amber-500">(local mode — only this browser)</span>}
         </p>
+        {usingSupabase && (
+          <div className="flex items-center justify-center gap-2 text-xs text-zinc-500">
+            <svg viewBox="0 0 109 113" className="h-4 w-4" aria-hidden="true">
+              <path
+                d="M63.708 110.284c-2.86 3.601-8.658 1.628-8.727-2.97l-1.007-67.251h45.22c8.19 0 12.758 9.46 7.665 15.874l-43.151 54.347Z"
+                fill="#3ECF8E"
+                opacity="0.6"
+              />
+              <path
+                d="M45.317 2.071c2.86-3.601 8.657-1.628 8.726 2.97l.442 67.251H9.83c-8.19 0-12.759-9.46-7.665-15.875L45.317 2.072Z"
+                fill="#3ECF8E"
+              />
+            </svg>
+            <span>
+              Live from <span className="text-[#3ECF8E] font-semibold">Supabase</span> — every client
+              (web, Mac app, extension) writes to the same table
+            </span>
+          </div>
+        )}
       </div>
 
       {entries === null ? (

@@ -14,6 +14,21 @@ export type Detection = {
 // ort types are loaded dynamically to keep this module SSR-safe
 type OrtModule = typeof import("onnxruntime-web");
 
+// Shared singleton: the landing page kicks off init in the background so the
+// 95 MB model + WebGPU session are already warm when a session starts.
+let sharedPromise: Promise<PhoneDetector> | null = null;
+
+export function preloadDetector(onProgress?: (msg: string) => void): Promise<PhoneDetector> {
+  if (!sharedPromise) {
+    const d = new PhoneDetector();
+    sharedPromise = d.init(onProgress).then(() => d);
+    sharedPromise.catch(() => {
+      sharedPromise = null; // failed preload (offline?) → next call retries fresh
+    });
+  }
+  return sharedPromise;
+}
+
 export class PhoneDetector {
   private session: import("onnxruntime-web").InferenceSession | null = null;
   private ort: OrtModule | null = null;
