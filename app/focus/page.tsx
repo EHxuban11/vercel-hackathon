@@ -264,6 +264,10 @@ export default function FocusPage() {
             The camera feed is processed entirely in your browser with ONNX Runtime Web. No frames are
             uploaded anywhere — only violation events are recorded.
           </p>
+          <p className="text-xs text-zinc-500 max-w-sm">
+            💡 Mac glowing around the edges? That&apos;s macOS Edge Light, not us — click the green
+            camera icon in the menu bar and toggle it off.
+          </p>
         </div>
       )}
 
