@@ -451,6 +451,14 @@ export default function FocusPage() {
               <p className="text-center text-2xl font-semibold text-yellow-300 leading-snug">
                 🗣️ &ldquo;{lastRoast}&rdquo;
               </p>
+              <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[11px] text-zinc-400">
+                <span className="flex items-end gap-[2px] h-3" aria-hidden="true">
+                  <span className="w-[3px] h-2 bg-zinc-300 animate-pulse rounded-sm" />
+                  <span className="w-[3px] h-3 bg-zinc-300 animate-pulse rounded-sm [animation-delay:150ms]" />
+                  <span className="w-[3px] h-1.5 bg-zinc-300 animate-pulse rounded-sm [animation-delay:300ms]" />
+                </span>
+                Voice by <span className="font-semibold tracking-tight text-zinc-200">ElevenLabs</span>
+              </div>
             </div>
           )}
 
