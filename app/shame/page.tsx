@@ -247,9 +247,9 @@ export default function WallOfShame() {
                 <tr>
                   <th className="text-left px-4 py-2">#</th>
                   <th className="text-left px-4 py-2">Hero</th>
-                  <th className="text-right px-4 py-2">✅ Done</th>
-                  <th className="text-right px-4 py-2">🧼 Clean</th>
-                  <th className="text-right px-4 py-2">🔥 Streak</th>
+                  <th className="text-right px-4 py-2 whitespace-nowrap">✅ Done</th>
+                  <th className="text-right px-4 py-2 whitespace-nowrap">🧼 Clean</th>
+                  <th className="text-right px-4 py-2 whitespace-nowrap">🔥 Streak</th>
                 </tr>
               </thead>
               <tbody>
@@ -278,9 +278,9 @@ export default function WallOfShame() {
                 <tr>
                   <th className="text-left px-4 py-2">#</th>
                   <th className="text-left px-4 py-2">Offender</th>
-                  <th className="text-right px-4 py-2">📱 Phone</th>
-                  <th className="text-right px-4 py-2">🌐 Tabs</th>
-                  <th className="text-right px-4 py-2">Total</th>
+                  <th className="text-right px-4 py-2 whitespace-nowrap">📱 Phone</th>
+                  <th className="text-right px-4 py-2 whitespace-nowrap">🌐 Tabs</th>
+                  <th className="text-right px-4 py-2 whitespace-nowrap">Total</th>
                 </tr>
               </thead>
               <tbody>
