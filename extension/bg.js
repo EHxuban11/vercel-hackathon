@@ -92,3 +92,17 @@ chrome.alarms.onAlarm.addListener((a) => {
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.userName) sync();
 });
+
+// The web app pushes the user's name here on page load — zero-config pairing.
+chrome.runtime.onMessageExternal.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === "pair" && typeof msg.userName === "string" && msg.userName.trim()) {
+    chrome.storage.sync.set({ userName: msg.userName.trim() }).then(() => {
+      sync();
+      sendResponse({ ok: true });
+    });
+    return true; // async response
+  }
+  if (msg?.type === "ping") {
+    sendResponse({ ok: true, installed: true });
+  }
+});

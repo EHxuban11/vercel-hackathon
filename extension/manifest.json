@@ -3,12 +3,37 @@
   "name": "Phone Jail Blocker",
   "version": "1.0.0",
   "description": "Blocks distracting sites while you have an active Phone Jail focus session. The web app is the source of truth; this is just the muscle.",
-  "permissions": ["declarativeNetRequest", "storage", "alarms"],
-  "host_permissions": ["https://uamlztbjnexdgwlcgzkp.supabase.co/*"],
-  "background": { "service_worker": "bg.js", "type": "module" },
+  "permissions": [
+    "declarativeNetRequest",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://uamlztbjnexdgwlcgzkp.supabase.co/*"
+  ],
+  "background": {
+    "service_worker": "bg.js",
+    "type": "module"
+  },
   "options_page": "options.html",
-  "action": { "default_popup": "options.html" },
+  "action": {
+    "default_popup": "options.html"
+  },
   "web_accessible_resources": [
-    { "resources": ["blocked.html"], "matches": ["<all_urls>"] }
-  ]
+    {
+      "resources": [
+        "blocked.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4m1futjqiwdG/PX7xyYoleR4JwJIk5nr12QaTL4z31Po84MUrnbT8bXTCRIE5aOnXbVeYT0kPCyR6EP7ycP2/Vc9/nPkL+wrxxI3Thqg/MhliOgAl7b4hX5yps6G27/Sba/Z+70WRgujAPm9ySzmIRos4Bdgw7D3twdnXIJOi27TyC51QK1/nH+sGZBL4PUq/S9++lODeTGE8BDcHbKjhXO50ydHiH+U2KjGPtLhpe39renys1vo1XqZdsPc9CWe/SklvLyPVMBBGCTD5xvUgUwhNxJm1wzAmBxoKA02J8AeU7dTpH0iBeGcpS3j1LzfWsj1iVWqViWWQyIUS8UOfQIDAQAB",
+  "externally_connectable": {
+    "matches": [
+      "https://phone-jail.vercel.app/*",
+      "http://localhost:3000/*"
+    ]
+  }
 }
