@@ -27,14 +27,14 @@ export class PhoneDetector {
     ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/";
     this.ort = ort;
 
-    onProgress?.("Loading model (45 MB)…");
-    // WebGPU when available (5-10x faster), WASM fallback
+    // YOLO26m on WebGPU (GPU-accelerated, strongest model), YOLOv8s on WASM fallback
     try {
-      this.session = await ort.InferenceSession.create("/models/yolov8s.onnx", {
+      onProgress?.("Loading YOLO26m (82 MB, GPU)…");
+      this.session = await ort.InferenceSession.create("/models/yolo26m.onnx", {
         executionProviders: ["webgpu"],
       });
     } catch {
-      onProgress?.("WebGPU unavailable, using WASM…");
+      onProgress?.("WebGPU unavailable — loading YOLOv8s (45 MB, CPU)…");
       this.session = await ort.InferenceSession.create("/models/yolov8s.onnx", {
         executionProviders: ["wasm"],
       });
@@ -89,37 +89,51 @@ export class PhoneDetector {
       const results = await this.session.run({ [inputName]: tensor });
       const out = results[outputName];
 
-      // YOLOv8 output: [1, 84, 8400] — 4 box coords + 80 class scores per anchor
-      const [, channels, anchors] = out.dims as number[];
-      const numClasses = channels - 4;
       const d = out.data as Float32Array;
-
       let bestScore = 0;
-      let bestIdx = -1;
-      const classOffset = (4 + CELL_PHONE_CLASS) * anchors;
-      if (CELL_PHONE_CLASS < numClasses) {
-        for (let i = 0; i < anchors; i++) {
-          const s = d[classOffset + i];
-          if (s > bestScore) {
-            bestScore = s;
-            bestIdx = i;
+      let box: Detection["box"] = null;
+
+      if (out.dims.length === 3 && out.dims[2] === 6) {
+        // YOLO26 end-to-end output: [1, N, 6] rows of x1,y1,x2,y2,score,class
+        const N = out.dims[1] as number;
+        for (let i = 0; i < N; i++) {
+          const score = d[i * 6 + 4];
+          if (Math.round(d[i * 6 + 5]) !== CELL_PHONE_CLASS || score <= bestScore) continue;
+          bestScore = score;
+          if (score >= threshold) {
+            const x1 = d[i * 6];
+            const y1 = d[i * 6 + 1];
+            box = {
+              x: (x1 - dx) / r,
+              y: (y1 - dy) / r,
+              w: (d[i * 6 + 2] - x1) / r,
+              h: (d[i * 6 + 3] - y1) / r,
+            };
           }
         }
-      }
-
-      let box: Detection["box"] = null;
-      if (bestIdx >= 0 && bestScore >= threshold) {
-        const cx = d[bestIdx];
-        const cy = d[anchors + bestIdx];
-        const w = d[2 * anchors + bestIdx];
-        const h = d[3 * anchors + bestIdx];
-        // map back from letterboxed 640-space to video pixels
-        box = {
-          x: (cx - w / 2 - dx) / r,
-          y: (cy - h / 2 - dy) / r,
-          w: w / r,
-          h: h / r,
-        };
+      } else {
+        // YOLOv8 output: [1, 84, 8400] — 4 box coords + 80 class scores per anchor
+        const [, channels, anchors] = out.dims as number[];
+        const numClasses = channels - 4;
+        let bestIdx = -1;
+        const classOffset = (4 + CELL_PHONE_CLASS) * anchors;
+        if (CELL_PHONE_CLASS < numClasses) {
+          for (let i = 0; i < anchors; i++) {
+            const s = d[classOffset + i];
+            if (s > bestScore) {
+              bestScore = s;
+              bestIdx = i;
+            }
+          }
+        }
+        if (bestIdx >= 0 && bestScore >= threshold) {
+          const cx = d[bestIdx];
+          const cy = d[anchors + bestIdx];
+          const w = d[2 * anchors + bestIdx];
+          const h = d[3 * anchors + bestIdx];
+          // map back from letterboxed 640-space to video pixels
+          box = { x: (cx - w / 2 - dx) / r, y: (cy - h / 2 - dy) / r, w: w / r, h: h / r };
+        }
       }
 
       return { score: bestScore, box };
