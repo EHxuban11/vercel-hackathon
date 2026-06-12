@@ -18,10 +18,15 @@ async function hasPregeneratedAudio(): Promise<boolean> {
   return pregenAvailable;
 }
 
+let currentAudio: HTMLAudioElement | null = null;
+
 function playUrl(url: string): Promise<void> {
   return new Promise((resolve, reject) => {
+    currentAudio?.pause(); // a fresh bust interrupts the previous roast
     const audio = new Audio(url);
+    currentAudio = audio;
     audio.onended = () => resolve();
+    audio.onpause = () => resolve(); // interrupted counts as done
     audio.onerror = () => reject(new Error("audio failed"));
     audio.play().catch(reject);
   });
