@@ -5,20 +5,10 @@ import {
   getActiveUsers,
   getHistory,
   getLeaderboard,
-  getRecentViolations,
   usingSupabase,
   type HistoryEntry,
   type LeaderboardEntry,
-  type RecentViolation,
 } from "@/lib/store";
-
-function timeAgo(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const h = Math.floor(mins / 60);
-  return `${h}h ago`;
-}
 
 // ---- Demo data (toggle on the page) — 35 fake 2026 teammates, seeded so it's
 // stable across reloads. Real users always override a demo person by name. ----
@@ -73,37 +63,21 @@ const DEMO_BOARD: LeaderboardEntry[] = (() => {
 
 const DEMO_ACTIVE = ["Lucía", "Marc", "Priya", "Doomscroll Dan"];
 
-function demoTicker(): RecentViolation[] {
-  const spec: { name: string; kind: "phone" | "tab"; minsAgo: number }[] = [
-    { name: "Doomscroll Dan", kind: "tab", minsAgo: 1 },
-    { name: "Marc", kind: "phone", minsAgo: 3 },
-    { name: "TikTok Tina", kind: "phone", minsAgo: 7 },
-    { name: "Hackathon Dave", kind: "tab", minsAgo: 12 },
-    { name: "Guille", kind: "phone", minsAgo: 18 },
-    { name: "Yuki", kind: "tab", minsAgo: 27 },
-    { name: "Doomscroll Dan", kind: "phone", minsAgo: 41 },
-  ];
-  return spec.map((d, i) => ({
-    id: `demo-${i}`,
-    user_name: d.name,
-    kind: d.kind,
-    created_at: new Date(Date.now() - d.minsAgo * 60_000).toISOString(),
-  }));
-}
-
-// fake personal activity so the heatmap looks lived-in with demo mode on
+// fake personal activity so the heatmap looks like a winner's GitHub: dense
+// green all over 2026, the occasional red slip
 const DEMO_HISTORY: HistoryEntry[] = (() => {
   const rnd = mulberry32(7);
   const out: HistoryEntry[] = [];
-  for (let day = 0; day < 84; day++) {
-    const n = rnd() < 0.6 ? Math.floor(rnd() * 4) : 0;
+  const days = Math.floor((Date.now() - new Date("2026-01-01T00:00:00").getTime()) / 86_400_000) + 1;
+  for (let day = 0; day < days; day++) {
+    const n = rnd() < 0.88 ? 1 + Math.floor(rnd() * 4) : 0;
     for (let k = 0; k < n; k++) {
       out.push({
         id: `demo-h-${day}-${k}`,
         started_at: new Date(Date.now() - day * 86_400_000).toISOString(),
         planned_minutes: 25,
         completed: true,
-        violations: rnd() < 0.22 ? 1 + Math.floor(rnd() * 2) : 0,
+        violations: rnd() < 0.12 ? 1 + Math.floor(rnd() * 2) : 0,
       });
     }
   }
@@ -120,16 +94,18 @@ function Heatmap({ history }: { history: HistoryEntry[] }) {
     cur.busts += h.violations;
     byDay.set(key, cur);
   }
-  const days = 7 * 12; // last 12 weeks
+  // all of 2026, Jan 1 → today
+  const start = new Date("2026-01-01T00:00:00").getTime();
   const today = new Date();
+  today.setHours(12, 0, 0, 0); // noon anchor dodges DST drift
   const cells = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today.getTime() - i * 86_400_000);
+  for (let t = start + 12 * 3_600_000; t <= today.getTime(); t += 86_400_000) {
+    const d = new Date(t);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     cells.push({ key, ...(byDay.get(key) ?? { sessions: 0, busts: 0 }) });
   }
   const color = (n: number) =>
-    n === 0 ? "bg-zinc-800" : n === 1 ? "bg-emerald-900" : n === 2 ? "bg-emerald-700" : "bg-emerald-500";
+    n === 0 ? "bg-zinc-800" : n === 1 ? "bg-emerald-800" : n === 2 ? "bg-emerald-600" : "bg-emerald-400";
   return (
     <div className="space-y-2">
       <div className="grid grid-flow-col grid-rows-7 gap-1 w-fit mx-auto">
@@ -146,7 +122,7 @@ function Heatmap({ history }: { history: HistoryEntry[] }) {
         ))}
       </div>
       <p className="text-xs text-zinc-600 text-center">
-        Last 12 weeks · <span className="text-emerald-500">green</span> = focus sessions ·{" "}
+        2026 · <span className="text-emerald-500">green</span> = focus sessions ·{" "}
         <span className="text-red-500">red dot</span> = you broke
       </p>
     </div>
@@ -158,7 +134,6 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 export default function WallOfShame() {
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [ticker, setTicker] = useState<RecentViolation[]>([]);
   const [activeUsers, setActiveUsers] = useState<Set<string>>(new Set());
   const [myName, setMyName] = useState("");
   const [demoMode, setDemoMode] = useState(true);
@@ -169,16 +144,14 @@ export default function WallOfShame() {
     setDemoMode(localStorage.getItem("pj_demo") !== "0");
     let alive = true;
     async function load() {
-      const [board, hist, recent, active] = await Promise.all([
+      const [board, hist, active] = await Promise.all([
         getLeaderboard().catch(() => []),
         name ? getHistory(name).catch(() => []) : Promise.resolve([]),
-        getRecentViolations(8).catch(() => []),
         getActiveUsers().catch(() => new Set<string>()),
       ]);
       if (alive) {
         setEntries(board);
         setHistory(hist);
-        setTicker(recent);
         setActiveUsers(active);
       }
     }
@@ -205,9 +178,6 @@ export default function WallOfShame() {
   const gloryBoard = [...board]
     .sort((a, b) => b.cleanSessions - a.cleanSessions || b.sessionsCompleted - a.sessionsCompleted)
     .slice(0, 12);
-  const mergedTicker = demoMode
-    ? [...ticker, ...demoTicker()].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 8)
-    : ticker;
   const mergedActive = demoMode ? new Set([...activeUsers, ...DEMO_ACTIVE]) : activeUsers;
   const heatmapHistory = demoMode ? [...history, ...DEMO_HISTORY] : history;
 
@@ -265,26 +235,6 @@ export default function WallOfShame() {
           🎭 Demo data: {demoMode ? "ON" : "OFF"}
         </button>
       </div>
-
-      {mergedTicker.length > 0 && (
-        <div className="w-full max-w-2xl rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-          <h2 className="text-xs uppercase tracking-wide text-zinc-500 mb-2">⚡ Live feed</h2>
-          <ul className="space-y-1.5 text-sm">
-            {mergedTicker.map((v) => (
-              <li key={v.id} className="flex justify-between gap-3">
-                <span>
-                  {v.kind === "phone" ? "📱" : "🌐"}{" "}
-                  <span className="font-medium">{v.user_name}</span>{" "}
-                  <span className="text-zinc-400">
-                    {v.kind === "phone" ? "grabbed the phone" : "went for a distraction"}
-                  </span>
-                </span>
-                <span className="text-zinc-600 text-xs whitespace-nowrap pt-0.5">{timeAgo(v.created_at)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {entries === null ? (
         <div className="w-8 h-8 border-2 border-zinc-600 border-t-white rounded-full animate-spin" />
@@ -368,45 +318,6 @@ export default function WallOfShame() {
         <div className="w-full max-w-2xl space-y-4">
           <h2 className="text-xl font-bold text-center">📜 Your year in jail, {myName}</h2>
           <Heatmap history={heatmapHistory} />
-          {history.length > 0 && (
-            <div className="overflow-hidden rounded-xl border border-zinc-800">
-              <table className="w-full text-sm">
-                <thead className="bg-zinc-900 text-zinc-400">
-                  <tr>
-                    <th className="text-left px-4 py-2">When</th>
-                    <th className="text-right px-4 py-2">Planned</th>
-                    <th className="text-right px-4 py-2">Busted</th>
-                    <th className="text-right px-4 py-2">Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((h) => (
-                    <tr key={h.id} className="border-t border-zinc-800/60">
-                      <td className="px-4 py-2 text-zinc-400">
-                        {new Date(h.started_at).toLocaleString([], {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-                      <td className="px-4 py-2 text-right">{h.planned_minutes} min</td>
-                      <td className={`px-4 py-2 text-right ${h.violations > 0 ? "text-red-400 font-bold" : ""}`}>
-                        {h.violations}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        {h.completed && h.violations === 0
-                          ? "✅ clean"
-                          : h.completed
-                            ? "⚠️ finished dirty"
-                            : "💀 streak broken"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       )}
     </div>
