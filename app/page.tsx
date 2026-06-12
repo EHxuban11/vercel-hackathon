@@ -7,9 +7,26 @@ import { usingSupabase } from "@/lib/store";
 export default function Home() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [auth, setAuth] = useState<"unknown" | "unavailable" | "logged-out" | "logged-in">("unknown");
 
   useEffect(() => {
     setName(localStorage.getItem("pj_name") ?? "");
+    // Auth0 (when configured) mounts /auth/profile via middleware; 404 = not configured
+    fetch("/auth/profile")
+      .then(async (res) => {
+        if (res.status === 404) return setAuth("unavailable");
+        if (!res.ok) return setAuth("logged-out");
+        const user = await res.json().catch(() => null);
+        if (user?.name || user?.email) {
+          const display = (user.name ?? user.email) as string;
+          setName(display);
+          localStorage.setItem("pj_name", display);
+          setAuth("logged-in");
+        } else {
+          setAuth("logged-out");
+        }
+      })
+      .catch(() => setAuth("unavailable"));
   }, []);
 
   function start() {
@@ -45,6 +62,16 @@ export default function Home() {
         >
           Lock me in
         </button>
+        {auth === "logged-out" && (
+          <a href="/auth/login" className="text-sm text-zinc-400 hover:text-white underline">
+            or log in with Auth0
+          </a>
+        )}
+        {auth === "logged-in" && (
+          <a href="/auth/logout" className="text-xs text-zinc-600 hover:text-zinc-400">
+            logged in via Auth0 — log out
+          </a>
+        )}
         <p className="text-xs text-zinc-600">
           {usingSupabase ? "Streaks synced via Supabase" : "Local mode — Supabase not configured yet"}
         </p>
