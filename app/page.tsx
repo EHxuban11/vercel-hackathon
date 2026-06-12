@@ -126,6 +126,15 @@ export default function Home() {
                 page. Done — refresh here and it pairs itself.
               </li>
             </ol>
+            <p className="text-sm text-zinc-400 border-t border-zinc-800 pt-2 mt-2">
+              🍎 On a Mac? There&apos;s also a{" "}
+              <a href="/downloads/PhoneJail.dmg" className="text-red-400 underline hover:text-red-300">
+                menu bar app
+              </a>{" "}
+              that kills distracting Chrome tabs system-wide during sessions — voice shaming included.
+              (Unsigned build — right-click → Open, or build from{" "}
+              <code className="text-zinc-300">macos/</code> in the repo.)
+            </p>
           </>
         )}
       </div>
