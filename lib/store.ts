@@ -146,6 +146,25 @@ export async function getStats(userName: string): Promise<{ streak: number; best
   return { streak, bestStreak };
 }
 
+export type ViolationEvent = { id: string; kind: ViolationKind; created_at: string };
+
+/** All violations of one session, oldest first — feeds the live timeline. */
+export async function getSessionViolations(sessionId: string): Promise<ViolationEvent[]> {
+  if (supabase) {
+    const { data } = await supabase
+      .from("violations")
+      .select("id, kind, created_at")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true })
+      .limit(100);
+    return (data ?? []).map((r) => ({ ...r, id: String(r.id) }));
+  }
+  return lsRead<LocalViolation>(LS_VIOLATIONS)
+    .filter((v) => v.session_id === sessionId)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map((v, i) => ({ id: `${sessionId}-${i}`, kind: v.kind, created_at: v.created_at }));
+}
+
 export type HistoryEntry = {
   id: string;
   started_at: string;

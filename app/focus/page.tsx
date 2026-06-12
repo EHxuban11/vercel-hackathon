@@ -5,7 +5,15 @@ import { useRouter } from "next/navigation";
 import { PhoneDetector, type Detection } from "@/lib/detector";
 import { buildRoast } from "@/lib/roast";
 import { sayRoast } from "@/lib/speech";
-import { endSession, getStats, logViolation, startSession, type ViolationKind } from "@/lib/store";
+import {
+  endSession,
+  getSessionViolations,
+  getStats,
+  logViolation,
+  startSession,
+  type ViolationEvent,
+  type ViolationKind,
+} from "@/lib/store";
 import { randomPhrase, type Lang } from "@/lib/phrases";
 
 const CONF_THRESHOLD = 0.3;
@@ -44,6 +52,7 @@ export default function FocusPage() {
   const [caught, setCaught] = useState(false);
   const [violations, setViolations] = useState(0);
   const [lastRoast, setLastRoast] = useState("");
+  const [timeline, setTimeline] = useState<ViolationEvent[]>([]);
   const [completedClean, setCompletedClean] = useState(false);
   const [lang, setLang] = useState<Lang>("en");
   const [name, setName] = useState("");
@@ -166,6 +175,33 @@ export default function FocusPage() {
     return () => clearInterval(iv);
   }, [phase, finish]);
 
+  // live timeline: poll this session's violations (includes the browser
+  // extension and the Mac app — they write to the same Supabase table)
+  useEffect(() => {
+    if (phase !== "running") return;
+    const iv = setInterval(() => {
+      if (sessionIdRef.current) {
+        void getSessionViolations(sessionIdRef.current).then(setTimeline).catch(() => {});
+      }
+    }, 3000);
+    return () => clearInterval(iv);
+  }, [phase]);
+
+  // tab closed mid-session → end the session via beacon (otherwise the
+  // extension and Mac app keep blocking a "zombie" session)
+  useEffect(() => {
+    function onPageHide() {
+      if (phaseRef.current === "running" && sessionIdRef.current) {
+        navigator.sendBeacon(
+          "/api/end-session",
+          new Blob([JSON.stringify({ sessionId: sessionIdRef.current })], { type: "application/json" })
+        );
+      }
+    }
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, []);
+
   // tab-switch detection (the "blocker" replacement)
   useEffect(() => {
     function onVisibility() {
@@ -207,6 +243,7 @@ export default function FocusPage() {
       violationsRef.current = 0;
       setViolations(0);
       setLastRoast("");
+      setTimeline([]);
       setSecondsLeft(plannedMinutes * 60);
       startedAtRef.current = Date.now();
       setPhase("running");
@@ -294,18 +331,49 @@ export default function FocusPage() {
             {mm}:{ss}
           </div>
 
-          <div
-            className={`relative rounded-xl overflow-hidden border-4 transition-colors ${
-              caught ? "border-red-500" : score >= CONF_THRESHOLD ? "border-amber-500" : "border-emerald-600"
-            }`}
-          >
-            <video ref={videoRef} muted playsInline className="w-[480px] max-w-full -scale-x-100" />
-            <canvas ref={overlayRef} className="absolute inset-0 w-full h-full -scale-x-100" />
-            {caught && (
-              <div className="absolute inset-0 flex items-center justify-center bg-red-600/40">
-                <span className="text-3xl font-black tracking-wider drop-shadow">📵 BUSTED</span>
-              </div>
-            )}
+          <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start">
+            <div className="w-64 max-h-[360px] overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 order-2 lg:order-1">
+              <h3 className="text-xs uppercase tracking-wide text-zinc-500 mb-3">Session timeline</h3>
+              <ol className="space-y-2 text-sm">
+                <li className="flex gap-2 text-zinc-400">
+                  <span className="text-zinc-600 font-mono text-xs pt-0.5">
+                    {new Date(startedAtRef.current).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  <span>▶️ Session started</span>
+                </li>
+                {timeline.map((e) => (
+                  <li key={e.id} className="flex gap-2 text-red-300">
+                    <span className="text-zinc-600 font-mono text-xs pt-0.5">
+                      {new Date(e.created_at).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    <span>{e.kind === "phone" ? "📱 Grabbed the phone" : "🌐 Went for a distraction"}</span>
+                  </li>
+                ))}
+                {timeline.length === 0 && (
+                  <li className="text-zinc-600 text-xs italic">Clean so far. Suspicious.</li>
+                )}
+              </ol>
+            </div>
+
+            <div
+              className={`relative rounded-xl overflow-hidden border-4 transition-colors order-1 lg:order-2 ${
+                caught ? "border-red-500" : score >= CONF_THRESHOLD ? "border-amber-500" : "border-emerald-600"
+              }`}
+            >
+              <video ref={videoRef} muted playsInline className="w-[480px] max-w-full -scale-x-100" />
+              <canvas ref={overlayRef} className="absolute inset-0 w-full h-full -scale-x-100" />
+              {caught && (
+                <div className="absolute inset-0 flex items-center justify-center bg-red-600/40">
+                  <span className="text-3xl font-black tracking-wider drop-shadow">📵 BUSTED</span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-6 text-sm text-zinc-400">
