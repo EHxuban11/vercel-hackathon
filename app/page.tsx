@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { usingSupabase } from "@/lib/store";
+import { getTotalViolations, usingSupabase } from "@/lib/store";
 import { pairExtension } from "@/lib/extension";
 import { preloadDetector } from "@/lib/detector";
 
@@ -11,8 +11,11 @@ export default function Home() {
   const [name, setName] = useState("");
   const [auth, setAuth] = useState<"unknown" | "unavailable" | "logged-out" | "logged-in">("unknown");
 
+  const [betrayals, setBetrayals] = useState<number | null>(null);
+
   useEffect(() => {
     void preloadDetector().catch(() => {}); // warm the model + WebGPU in the background
+    void getTotalViolations().then(setBetrayals).catch(() => {});
     const saved = localStorage.getItem("pj_name") ?? "";
     setName(saved);
     if (saved) pairExtension(saved); // extension still pairs silently if someone has it
@@ -51,6 +54,12 @@ export default function Home() {
           <span className="text-zinc-200">100% in your browser, no frames ever leave your machine</span>.
           Get caught, and a deeply disappointed parent voice lets you (and your whole team) know.
         </p>
+        {betrayals !== null && betrayals > 0 && (
+          <p className="text-zinc-500">
+            <span className="text-red-400 font-bold text-2xl tabular-nums">{betrayals}</span>{" "}
+            betrayals logged so far
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col items-center gap-3 w-full max-w-xs">

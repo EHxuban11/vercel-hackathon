@@ -171,6 +171,54 @@ export async function getSessionViolations(sessionId: string): Promise<Violation
     .map((v, i) => ({ id: `${sessionId}-${i}`, kind: v.kind, created_at: v.created_at }));
 }
 
+export type RecentViolation = { id: string; user_name: string; kind: ViolationKind; created_at: string };
+
+/** Latest violations across everyone — feeds the Wall of Shame live ticker. */
+export async function getRecentViolations(limit = 10): Promise<RecentViolation[]> {
+  if (supabase) {
+    const { data } = await supabase
+      .from("violations")
+      .select("id, user_name, kind, created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    return (data ?? []).map((r) => ({ ...r, id: String(r.id) }));
+  }
+  return lsRead<LocalViolation>(LS_VIOLATIONS)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, limit)
+    .map((v, i) => ({ id: `local-${i}`, user_name: v.user_name, kind: v.kind, created_at: v.created_at }));
+}
+
+/** Names of users with a focus session running right now (zombie-filtered). */
+export async function getActiveUsers(): Promise<Set<string>> {
+  let rows: { user_name: string; started_at: string; planned_minutes: number }[] = [];
+  if (supabase) {
+    const { data } = await supabase
+      .from("sessions")
+      .select("user_name, started_at, planned_minutes")
+      .is("ended_at", null)
+      .limit(50);
+    rows = data ?? [];
+  } else {
+    rows = lsRead<SessionRow>(LS_SESSIONS).filter((r) => r.ended_at === null);
+  }
+  const now = Date.now();
+  return new Set(
+    rows
+      .filter((r) => now - new Date(r.started_at).getTime() < (r.planned_minutes + 10) * 60_000)
+      .map((r) => r.user_name)
+  );
+}
+
+/** Grand total of violations ever logged — the landing-page shame counter. */
+export async function getTotalViolations(): Promise<number> {
+  if (supabase) {
+    const { count } = await supabase.from("violations").select("*", { count: "exact", head: true });
+    return count ?? 0;
+  }
+  return lsRead<LocalViolation>(LS_VIOLATIONS).length;
+}
+
 export type HistoryEntry = {
   id: string;
   started_at: string;

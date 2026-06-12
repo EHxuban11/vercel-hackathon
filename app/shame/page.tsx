@@ -2,16 +2,29 @@
 
 import { useEffect, useState } from "react";
 import {
+  getActiveUsers,
   getHistory,
   getLeaderboard,
+  getRecentViolations,
   usingSupabase,
   type HistoryEntry,
   type LeaderboardEntry,
+  type RecentViolation,
 } from "@/lib/store";
+
+function timeAgo(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const h = Math.floor(mins / 60);
+  return `${h}h ago`;
+}
 
 export default function WallOfShame() {
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [ticker, setTicker] = useState<RecentViolation[]>([]);
+  const [activeUsers, setActiveUsers] = useState<Set<string>>(new Set());
   const [myName, setMyName] = useState("");
 
   useEffect(() => {
@@ -19,13 +32,17 @@ export default function WallOfShame() {
     setMyName(name);
     let alive = true;
     async function load() {
-      const [board, hist] = await Promise.all([
+      const [board, hist, recent, active] = await Promise.all([
         getLeaderboard().catch(() => []),
         name ? getHistory(name).catch(() => []) : Promise.resolve([]),
+        getRecentViolations(8).catch(() => []),
+        getActiveUsers().catch(() => new Set<string>()),
       ]);
       if (alive) {
         setEntries(board);
         setHistory(hist);
+        setTicker(recent);
+        setActiveUsers(active);
       }
     }
     void load();
@@ -65,6 +82,26 @@ export default function WallOfShame() {
         )}
       </div>
 
+      {ticker.length > 0 && (
+        <div className="w-full max-w-2xl rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+          <h2 className="text-xs uppercase tracking-wide text-zinc-500 mb-2">⚡ Live feed</h2>
+          <ul className="space-y-1.5 text-sm">
+            {ticker.map((v) => (
+              <li key={v.id} className="flex justify-between gap-3">
+                <span>
+                  {v.kind === "phone" ? "📱" : "🌐"}{" "}
+                  <span className="font-medium">{v.user_name}</span>{" "}
+                  <span className="text-zinc-400">
+                    {v.kind === "phone" ? "grabbed the phone" : "went for a distraction"}
+                  </span>
+                </span>
+                <span className="text-zinc-600 text-xs whitespace-nowrap pt-0.5">{timeAgo(v.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {entries === null ? (
         <div className="w-8 h-8 border-2 border-zinc-600 border-t-white rounded-full animate-spin" />
       ) : entries.length === 0 ? (
@@ -88,7 +125,20 @@ export default function WallOfShame() {
                   <td className="px-4 py-3 text-zinc-500">
                     {i === 0 && e.totalViolations > 0 ? "👑" : i + 1}
                   </td>
-                  <td className="px-4 py-3 font-medium">{e.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <span className="inline-flex items-center gap-2">
+                      {e.name}
+                      {activeUsers.has(e.name) && (
+                        <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-emerald-400">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                          </span>
+                          in jail now
+                        </span>
+                      )}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-right">{e.phoneViolations}</td>
                   <td className="px-4 py-3 text-right">{e.tabViolations}</td>
                   <td

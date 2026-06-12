@@ -82,6 +82,17 @@ export default function FocusPage() {
       setCaught(true);
       setTimeout(() => setCaught(false), 3500);
 
+      // flash the tab title — visible even in a muted screen recording
+      const originalTitle = document.title;
+      let flashes = 0;
+      const flashIv = setInterval(() => {
+        document.title = document.title === originalTitle ? "📵 BUSTED" : originalTitle;
+        if (++flashes >= 12) {
+          clearInterval(flashIv);
+          document.title = originalTitle;
+        }
+      }, 500);
+
       const userName = localStorage.getItem("pj_name") ?? "unknown";
       const currentLang = (localStorage.getItem("pj_lang") as Lang) ?? "en";
       const text = buildRoast({
@@ -94,6 +105,7 @@ export default function FocusPage() {
         lang: currentLang,
       });
       setLastRoast(text);
+      setTimeout(() => setLastRoast(""), 8000); // caption lingers while the voice speaks
       void sayRoast(text, currentLang, randomPhrase(kind, currentLang).id);
       if (sessionIdRef.current) void logViolation(sessionIdRef.current, userName, kind);
     },
@@ -429,7 +441,11 @@ export default function FocusPage() {
           </div>
 
           {lastRoast && (
-            <p className="max-w-md text-center text-red-300 italic">&ldquo;{lastRoast}&rdquo;</p>
+            <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 max-w-2xl px-6 py-4 rounded-xl bg-black/85 border border-red-500/40 shadow-2xl">
+              <p className="text-center text-2xl font-semibold text-yellow-300 leading-snug">
+                🗣️ &ldquo;{lastRoast}&rdquo;
+              </p>
+            </div>
           )}
 
           <button
