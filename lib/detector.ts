@@ -27,10 +27,18 @@ export class PhoneDetector {
     ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/";
     this.ort = ort;
 
-    onProgress?.("Loading model (12 MB)…");
-    this.session = await ort.InferenceSession.create("/models/yolov8n.onnx", {
-      executionProviders: ["wasm"],
-    });
+    onProgress?.("Loading model (45 MB)…");
+    // WebGPU when available (5-10x faster), WASM fallback
+    try {
+      this.session = await ort.InferenceSession.create("/models/yolov8s.onnx", {
+        executionProviders: ["webgpu"],
+      });
+    } catch {
+      onProgress?.("WebGPU unavailable, using WASM…");
+      this.session = await ort.InferenceSession.create("/models/yolov8s.onnx", {
+        executionProviders: ["wasm"],
+      });
+    }
 
     this.canvas = document.createElement("canvas");
     this.canvas.width = INPUT_SIZE;

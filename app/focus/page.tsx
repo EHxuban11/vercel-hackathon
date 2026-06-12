@@ -8,10 +8,11 @@ import { sayRoast } from "@/lib/speech";
 import { endSession, getStats, logViolation, startSession, type ViolationKind } from "@/lib/store";
 import { randomPhrase, type Lang } from "@/lib/phrases";
 
-const CONF_THRESHOLD = 0.4;
-const CONSECUTIVE_FRAMES = 4; // frames above threshold before we call it a violation
+const CONF_THRESHOLD = 0.3;
+const WINDOW = 6; // look at the last N detections…
+const HITS_TO_TRIGGER = 4; // …and fire when this many were above threshold
 const COOLDOWN_MS = 15_000; // min gap between violations
-const DETECT_INTERVAL_MS = 150;
+const DETECT_INTERVAL_MS = 120;
 
 type Phase = "idle" | "loading" | "running" | "done";
 
@@ -24,7 +25,7 @@ export default function FocusPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
   const lastDetectRef = useRef(0);
-  const consecutiveRef = useRef(0);
+  const hitsRef = useRef<boolean[]>([]);
   const lastViolationRef = useRef(0);
   const violationsRef = useRef(0);
   const hiddenAtRef = useRef<number | null>(null);
@@ -119,14 +120,12 @@ export default function FocusPage() {
         if (!det || phaseRef.current !== "running") return;
         setScore(det.score);
         drawOverlay(det);
-        if (det.box && det.score >= CONF_THRESHOLD) {
-          consecutiveRef.current += 1;
-          if (consecutiveRef.current >= CONSECUTIVE_FRAMES) {
-            consecutiveRef.current = 0;
-            violation("phone");
-          }
-        } else {
-          consecutiveRef.current = 0;
+        // sliding window: tolerate flickery scores instead of demanding strict consecutive hits
+        hitsRef.current.push(det.score >= CONF_THRESHOLD);
+        if (hitsRef.current.length > WINDOW) hitsRef.current.shift();
+        if (hitsRef.current.filter(Boolean).length >= HITS_TO_TRIGGER) {
+          hitsRef.current = [];
+          violation("phone");
         }
       });
     },
@@ -178,7 +177,7 @@ export default function FocusPage() {
     try {
       setLoadingMsg("Requesting camera…");
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: "user" },
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
         audio: false,
       });
       streamRef.current = stream;
