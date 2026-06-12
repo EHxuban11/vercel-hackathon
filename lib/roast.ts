@@ -45,10 +45,16 @@ export function buildRoast(ctx: RoastContext): string {
         )} minutes. This is becoming a pattern.`;
   }
 
+  if (ctx.countThisSession >= 5) {
+    return ctx.lang === "es"
+      ? `${ctx.countThisSession} veces, ${name}. Ya ni me enfado. Estoy impresionado. Pocas personas fracasan con esta constancia.`
+      : `${ctx.countThisSession} times, ${name}. I'm not even angry anymore. I'm impressed. Few people fail this consistently.`;
+  }
+
   if (ctx.countThisSession >= 3) {
     return ctx.lang === "es"
-      ? `${ctx.countThisSession} veces, ${name}. ${ctx.countThisSession} veces. Ya ni me sale estar decepcionado. Esto es ciencia.`
-      : `${ctx.countThisSession} times, ${name}. ${ctx.countThisSession} times. I'm past disappointment. This is science now.`;
+      ? `Van ${ctx.countThisSession}, ${name}. A este paso tu móvil va a pedir una orden de alejamiento.`
+      : `That's ${ctx.countThisSession} now, ${name}. At this rate your phone is going to file a restraining order.`;
   }
 
   // Caught suspiciously early in the session.
