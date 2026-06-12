@@ -146,6 +146,53 @@ export async function getStats(userName: string): Promise<{ streak: number; best
   return { streak, bestStreak };
 }
 
+export type HistoryEntry = {
+  id: string;
+  started_at: string;
+  planned_minutes: number;
+  completed: boolean;
+  violations: number;
+};
+
+/** Your past sessions, newest first — including how many times you got busted in each. */
+export async function getHistory(userName: string): Promise<HistoryEntry[]> {
+  let sessions: SessionRow[] = [];
+  const counts = new Map<string, number>();
+
+  if (supabase) {
+    const [s, v] = await Promise.all([
+      supabase
+        .from("sessions")
+        .select("*")
+        .eq("user_name", userName)
+        .not("ended_at", "is", null)
+        .order("started_at", { ascending: false })
+        .limit(30),
+      supabase.from("violations").select("session_id").eq("user_name", userName),
+    ]);
+    sessions = (s.data ?? []) as SessionRow[];
+    for (const row of v.data ?? []) {
+      counts.set(row.session_id, (counts.get(row.session_id) ?? 0) + 1);
+    }
+  } else {
+    sessions = lsRead<SessionRow>(LS_SESSIONS)
+      .filter((r) => r.user_name === userName && r.ended_at !== null)
+      .sort((a, b) => b.started_at.localeCompare(a.started_at))
+      .slice(0, 30);
+    for (const v of lsRead<LocalViolation>(LS_VIOLATIONS)) {
+      counts.set(v.session_id, (counts.get(v.session_id) ?? 0) + 1);
+    }
+  }
+
+  return sessions.map((s) => ({
+    id: s.id,
+    started_at: s.started_at,
+    planned_minutes: s.planned_minutes,
+    completed: s.completed,
+    violations: counts.get(s.id) ?? 0,
+  }));
+}
+
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
   let sessions: SessionRow[] = [];
   let violations: { session_id: string; user_name: string; kind: ViolationKind }[] = [];

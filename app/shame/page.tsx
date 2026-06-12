@@ -1,16 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getLeaderboard, usingSupabase, type LeaderboardEntry } from "@/lib/store";
+import {
+  getHistory,
+  getLeaderboard,
+  usingSupabase,
+  type HistoryEntry,
+  type LeaderboardEntry,
+} from "@/lib/store";
 
 export default function WallOfShame() {
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [myName, setMyName] = useState("");
 
   useEffect(() => {
+    const name = localStorage.getItem("pj_name") ?? "";
+    setMyName(name);
     let alive = true;
     async function load() {
-      const data = await getLeaderboard().catch(() => []);
-      if (alive) setEntries(data);
+      const [board, hist] = await Promise.all([
+        getLeaderboard().catch(() => []),
+        name ? getHistory(name).catch(() => []) : Promise.resolve([]),
+      ]);
+      if (alive) {
+        setEntries(board);
+        setHistory(hist);
+      }
     }
     void load();
     const iv = setInterval(load, 5000); // poor man's realtime
@@ -72,6 +88,49 @@ export default function WallOfShame() {
       )}
 
       <p className="text-xs text-zinc-700">Refreshes every 5 seconds. 👑 = team&apos;s biggest disappointment.</p>
+
+      {myName && history.length > 0 && (
+        <div className="w-full max-w-2xl space-y-3">
+          <h2 className="text-xl font-bold">📜 Your sessions, {myName}</h2>
+          <div className="overflow-hidden rounded-xl border border-zinc-800">
+            <table className="w-full text-sm">
+              <thead className="bg-zinc-900 text-zinc-400">
+                <tr>
+                  <th className="text-left px-4 py-2">When</th>
+                  <th className="text-right px-4 py-2">Planned</th>
+                  <th className="text-right px-4 py-2">Busted</th>
+                  <th className="text-right px-4 py-2">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr key={h.id} className="border-t border-zinc-800/60">
+                    <td className="px-4 py-2 text-zinc-400">
+                      {new Date(h.started_at).toLocaleString([], {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td className="px-4 py-2 text-right">{h.planned_minutes} min</td>
+                    <td className={`px-4 py-2 text-right ${h.violations > 0 ? "text-red-400 font-bold" : ""}`}>
+                      {h.violations}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {h.completed && h.violations === 0
+                        ? "✅ clean"
+                        : h.completed
+                          ? "⚠️ finished dirty"
+                          : "💀 streak broken"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

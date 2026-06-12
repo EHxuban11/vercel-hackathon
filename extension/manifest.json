@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Phone Jail Blocker",
+  "version": "1.0.0",
+  "description": "Blocks distracting sites while you have an active Phone Jail focus session. The web app is the source of truth; this is just the muscle.",
+  "permissions": ["declarativeNetRequest", "storage", "alarms"],
+  "host_permissions": ["https://uamlztbjnexdgwlcgzkp.supabase.co/*"],
+  "background": { "service_worker": "bg.js", "type": "module" },
+  "options_page": "options.html",
+  "action": { "default_popup": "options.html" },
+  "web_accessible_resources": [
+    { "resources": ["blocked.html"], "matches": ["<all_urls>"] }
+  ]
+}

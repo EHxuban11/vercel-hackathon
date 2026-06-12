@@ -76,6 +76,26 @@ export default function Home() {
           {usingSupabase ? "Streaks synced via Supabase" : "Local mode — Supabase not configured yet"}
         </p>
       </div>
+
+      <div className="max-w-md w-full rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 text-left space-y-2">
+        <h2 className="font-semibold">🧱 Want actual blocking? Get the browser extension</h2>
+        <p className="text-sm text-zinc-400">
+          While you have an active focus session, it blocks YouTube, Reddit, X, TikTok &amp; friends
+          across your whole browser — and snitches every attempt to the Wall of Shame.
+        </p>
+        <ol className="text-sm text-zinc-400 list-decimal list-inside space-y-1">
+          <li>
+            <a href="/downloads/phone-jail-blocker.zip" className="text-red-400 underline hover:text-red-300">
+              Download the extension
+            </a>{" "}
+            and unzip it
+          </li>
+          <li>
+            Open <code className="text-zinc-300">chrome://extensions</code> → enable Developer mode
+          </li>
+          <li>&ldquo;Load unpacked&rdquo; → pick the folder → set your name in the popup</li>
+        </ol>
+      </div>
     </div>
   );
 }
