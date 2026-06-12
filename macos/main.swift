@@ -146,8 +146,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.title = session != nil ? "📵🔒" : "📵"
     }
 
-    private func logViolation(sessionId: String) {
-        let payload: [String: Any] = ["session_id": sessionId, "user_name": userName, "kind": "tab"]
+    private func logViolation(sessionId: String, site: String? = nil) {
+        var payload: [String: Any] = ["session_id": sessionId, "user_name": userName, "kind": "tab"]
+        if let site { payload["site"] = site }
         guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
         URLSession.shared.dataTask(
             with: supabaseRequest(path: "/rest/v1/violations", method: "POST", body: body)
@@ -165,6 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .joined(separator: " or ")
         let script = """
         set killed to 0
+        set hitURL to ""
         tell application "Google Chrome"
             if it is running then
                 repeat with w in windows
@@ -173,6 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         repeat with i from tabCount to 1 by -1
                             set u to URL of tab i of w
                             if \(conditions) then
+                                if hitURL is "" then set hitURL to u
                                 close tab i of w
                                 set killed to killed + 1
                             end if
@@ -181,7 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 end repeat
             end if
         end tell
-        return killed
+        return (killed as text) & "|||" & hitURL
         """
         DispatchQueue.global().async { [weak self] in
             guard let self else { return }
@@ -194,17 +197,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try? proc.run()
             proc.waitUntilExit()
             let out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "0"
-            let killed = Int(out.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+            let parts = out.trimmingCharacters(in: .whitespacesAndNewlines)
+                .components(separatedBy: "|||")
+            let killed = Int(parts.first ?? "0") ?? 0
+            var site: String?
+            if parts.count > 1, let host = URLComponents(string: parts[1])?.host {
+                site = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+            }
             if killed > 0 {
-                DispatchQueue.main.async { self.busted(sessionId: session.id) }
+                DispatchQueue.main.async { self.busted(sessionId: session.id, site: site) }
             }
         }
     }
 
-    private func busted(sessionId: String) {
+    private func busted(sessionId: String, site: String?) {
         guard Date().timeIntervalSince(lastViolation) > 15 else { return }
         lastViolation = Date()
-        logViolation(sessionId: sessionId)
+        logViolation(sessionId: sessionId, site: site)
         playShame()
     }
 

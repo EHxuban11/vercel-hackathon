@@ -400,7 +400,13 @@ export default function FocusPage() {
                         minute: "2-digit",
                       })}
                     </span>
-                    <span>{e.kind === "phone" ? "📱 Grabbed the phone" : "🌐 Went for a distraction"}</span>
+                    <span>
+                      {e.kind === "phone"
+                        ? "📱 Grabbed the phone"
+                        : e.site
+                          ? `🌐 Opened ${e.site}`
+                          : "🌐 Went for a distraction"}
+                    </span>
                   </li>
                 ))}
                 {timeline.length === 0 && (

@@ -15,6 +15,7 @@ create table if not exists violations (
   session_id uuid references sessions (id) on delete cascade,
   user_name text not null,
   kind text not null check (kind in ('phone', 'tab')),
+  site text, -- which site (Mac app tab kills know it; browser tab switches don't)
   created_at timestamptz not null default now()
 );
 
