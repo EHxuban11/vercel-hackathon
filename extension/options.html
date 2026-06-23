@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Phone Jail Blocker</title>
+  <style>
+    body {
+      width: 320px; padding: 1.2rem; background: #18181b; color: #fafafa;
+      font-family: system-ui, sans-serif; display: flex; flex-direction: column; gap: 0.8rem;
+    }
+    h1 { font-size: 1.1rem; margin: 0; }
+    input {
+      padding: 0.6rem; border-radius: 8px; border: 1px solid #3f3f46;
+      background: #27272a; color: #fafafa; font-size: 0.95rem;
+    }
+    button {
+      padding: 0.6rem; border-radius: 8px; border: none; background: #dc2626;
+      color: white; font-weight: 600; cursor: pointer; font-size: 0.95rem;
+    }
+    .status { font-size: 0.85rem; color: #a1a1aa; }
+    .on { color: #f87171; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>📵 Phone Jail Blocker</h1>
+  <p class="status">
+    Enter the same name you use on
+    <a href="https://phone-jail.vercel.app" target="_blank" style="color:#f87171">phone-jail.vercel.app</a>.
+    Distracting sites get blocked whenever you have an active focus session.
+  </p>
+  <input id="name" placeholder="Your Phone Jail name" />
+  <button id="save">Save</button>
+  <div class="status" id="status"></div>
+  <script src="options.js" type="module"></script>
+</body>
+</html>
